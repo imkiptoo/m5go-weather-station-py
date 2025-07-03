@@ -157,6 +157,13 @@ weather_icon_mapping = {
     '50n': 'nt_fog.png'
 }
 
+# Global variables for forecast display (5 days for better screen layout)
+forecast_days = ["TODAY", "MON", "TUE", "WED", "THU"]
+forecast_dates = ["11/5", "12/5", "13/5", "14/5", "15/5"]  
+forecast_temps = ["22°", "20°", "19°", "18°", "18°"]
+forecast_humidity = ["74%", "70%", "78%", "85%", "82%"]
+forecast_icons = ["sunny.png", "cloudy.png", "rain.png", "cloudy.png", "rain.png"]
+
 def fetch_time():
     global ntp
     global rtc
@@ -210,6 +217,40 @@ def check_env_connection():
     
     return result
 
+def parse_forecast_data(weather_data):
+    """Parse forecast data from weather JSON and update forecast display variables"""
+    global forecast_days, forecast_dates, forecast_temps, forecast_humidity, forecast_icons
+    
+    try:
+        if 'forecast' in weather_data:
+            forecast_list = weather_data['forecast']
+            
+            # Process up to 5 days from MQTT data
+            for i, day_data in enumerate(forecast_list[:5]):  
+                if i < len(forecast_days):
+                    # Update day names and dates
+                    forecast_days[i] = day_data.get('day', forecast_days[i])
+                    forecast_dates[i] = day_data.get('date', forecast_dates[i])
+                    
+                    # Update temperatures
+                    temp = day_data.get('temp', 0)
+                    forecast_temps[i] = "{:.0f}°".format(temp)
+                    
+                    # Update humidity
+                    humidity = day_data.get('humidity', 0)
+                    forecast_humidity[i] = "{}%".format(humidity)
+                    
+                    # Update weather icons
+                    icon_code = day_data.get('icon', '')
+                    if icon_code in weather_icon_mapping:
+                        forecast_icons[i] = weather_icon_mapping[icon_code]
+                    else:
+                        forecast_icons[i] = "unknown.png"
+                        
+            print("Forecast data updated successfully")
+    except Exception as e:
+        print("Error parsing forecast data: {}".format(e))
+
 def parse_weather_data(data):
     global weather_temp, weather_condition, current_icon_file, weather_condition_description, current_wind, current_location
     try:
@@ -231,6 +272,9 @@ def parse_weather_data(data):
                 current_icon_file = weather_icon_mapping[current_icon]
         else:
             current_icon_file = "unknown.png"
+        
+        # Update forecast data as well
+        parse_forecast_data(data)
         
         if current_screen == "home":            
             label_condition.setText(weather_condition_description)
@@ -475,9 +519,65 @@ def show_home_screen():
     update_footer()
 
 def show_forecast_screen():
-    show_header("Weather Forecast")
-
-    M5TextBox(10, 50, "Forecast data will be displayed here", lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+    global forecast_days, forecast_dates, forecast_temps, forecast_humidity, forecast_icons
+    
+    show_header("5-Day Forecast")
+    
+    # Debug: print forecast data to console
+    print("Forecast data:")
+    print("Days:", forecast_days)
+    print("Dates:", forecast_dates)
+    print("Temps:", forecast_temps)
+    print("Humidity:", forecast_humidity)
+    print("Icons:", forecast_icons)
+    
+    # Add degree symbol in top right
+    temp_unit = M5TextBox(280, 8, "°C", lcd.FONT_DejaVu12, 0xffffff, rotate=0)
+    
+    # Layout for 5 days across 320px screen with some margin
+    col_width = 60  # Slightly smaller to add margins
+    start_x = 10   # Start with small margin from left edge
+    
+    # Create forecast for all 5 days
+    for i in range(5):
+        x_pos = start_x + (i * col_width)
+        
+        # Day name - use full names for better readability
+        if forecast_days[i] == "TODAY":
+            day_text = "TOD"  # Shortened to fit
+        else:
+            day_text = forecast_days[i][:3]  # MON, TUE, etc.
+        M5TextBox(x_pos, 40, day_text, lcd.FONT_DejaVu12, 0xffffff, rotate=0)
+        
+        # Date (remove month, just day)
+        date_short = forecast_dates[i].split('/')[1] if '/' in forecast_dates[i] else forecast_dates[i]
+        M5TextBox(x_pos + 5, 55, date_short, lcd.FONT_DejaVu12, 0xffffff, rotate=0)
+        
+        # Weather icon (try image first, fallback to text)
+        try:
+            M5Img(x_pos + 5, 75, "res/{}".format(forecast_icons[i]), True)
+        except:
+            # Fallback weather icons - use single characters
+            if "rain" in forecast_icons[i]:
+                icon_char = "R"
+            elif "sunny" in forecast_icons[i] or "clear" in forecast_icons[i]:
+                icon_char = "S"
+            elif "cloud" in forecast_icons[i]:
+                icon_char = "C"
+            elif "snow" in forecast_icons[i]:
+                icon_char = "N"
+            else:
+                icon_char = "?"
+            M5TextBox(x_pos + 15, 75, icon_char, lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+        
+        # Temperature 
+        temp_text = forecast_temps[i]
+        M5TextBox(x_pos, 125, temp_text, lcd.FONT_DejaVu12, 0xffffff, rotate=0)
+        
+        # Humidity
+        humid_text = forecast_humidity[i]
+        M5TextBox(x_pos, 145, humid_text, lcd.FONT_DejaVu12, 0xffffff, rotate=0)
+    
     create_footer()
     update_footer()
 
