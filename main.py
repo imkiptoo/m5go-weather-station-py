@@ -45,7 +45,7 @@ def status_to_string(status):
     else:
         return "Unknown"
 
-setScreenColor(0x111111)
+setScreenColor(0x000000)
 
 # Screen navigation configuration
 screen_navigation = {
@@ -59,7 +59,7 @@ screen_navigation = {
 }
 
 current_screen = "status"
-title0 = M5Title(title="ENV III Sensor", x=3, fgcolor=0xffffff, bgcolor=0x0000ff)
+title0 = M5Title(title="ENV III Sensor", x=8, fgcolor=0xffffff, bgcolor=0x0000ff, h=32)
 
 env3_0 = None
 ntp = None
@@ -84,21 +84,26 @@ mqtt_client = None
 weather_data = {}
 weather_alert = None
 
+# Minimal weather data - just basic values
+weather_temp = 0.0
+weather_condition = ""
+
+# Simplified sensor data - use global variables
+current_sensor_temp = None
+current_sensor_hum = None
+current_sensor_press = None
+last_sensor_temp = None
+last_sensor_hum = None
+last_sensor_press = None
+
 # Status tracking for console logging
 wifi_status = Status.DISCONNECTED
 env_status = Status.DISCONNECTED
 mqtt_status = Status.DISCONNECTED
 sd_status = Status.DISCONNECTED
 sd_mounted = False
-last_temp = None
-last_hum = None
-last_press = None
 
-# Track last displayed status for optimization
-last_displayed_wifi = None
-last_displayed_env = None
-last_displayed_mqtt = None
-last_displayed_sd = None
+# Removed status tracking to save memory
 
 # Footer button labels
 footer_a = None
@@ -158,6 +163,15 @@ def check_env_connection():
     
     return result
 
+def parse_weather_data(data):
+    global weather_temp, weather_condition
+    try:
+        weather_temp = data.get("current_temp", 0.0)
+        weather_condition = data.get("condition", "")
+        print("Weather: {:.1f}C {}".format(weather_temp, weather_condition))
+    except:
+        pass
+
 def mqtt_callback(topic, msg):
     global weather_data, weather_alert
     try:
@@ -166,10 +180,11 @@ def mqtt_callback(topic, msg):
         
         if topic_str == 'weather/data':
             weather_data = ujson.loads(msg_str)
+            parse_weather_data(weather_data)
         elif topic_str == 'weather/alert_trigger':
             weather_alert = ujson.loads(msg_str)
-    except:
-        pass
+    except Exception as e:
+        print("MQTT callback error: {}".format(e))
 
 def check_mqtt_connection():
     global mqtt_client, mqtt_status, current_screen
@@ -205,34 +220,10 @@ def check_mqtt_connection():
     return result
 
 def log_message(level, message):
-    """Log structured messages with timestamp and level"""
     try:
-        timestamp = get_datetime_string()
-        
-        # Determine storage path - prefer SD card if available
-        if sd_mounted and sd_status == Status.CONNECTED:
-            base_dir = "/sd"
-        else:
-            base_dir = "/flash"
-        
-        # Ensure logs directory exists
-        logs_dir = "{}/logs".format(base_dir)
-        try:
-            os.mkdir(logs_dir)
-        except:
-            pass
-        
-        log_file = "{}/{}.log".format(logs_dir, get_date_string())
-        log_entry = "{}  {:10} m5go: {}".format(timestamp, level, message)
-        
-        with open(log_file, "a+") as fs:
-            fs.write(log_entry + "\n")
-        
-        # Also print to console
-        print(log_entry)
-        
-    except Exception as e:
-        print("Failed to write log: {}".format(e))
+        print("{}: {}".format(level, message))
+    except:
+        pass
 
 def send_mqtt_data(temperature, humidity, pressure):
     global mqtt_client, mqtt_status
@@ -255,15 +246,10 @@ def send_mqtt_data(temperature, humidity, pressure):
         return False
 
 def get_date_string():
-    if ntp is None:
-        fetch_time()
-    return ntp.formatDate('-')
+    return "2025-07-03"
 
 def get_datetime_string():
-    if ntp is None:
-        fetch_time()
-    year, month, day, _, hour, minute, second, _ = rtc.datetime()
-    return "{:04d}-{:02d}-{:02d}T{:02d}:{:02d}:{:02d}".format(year, month, day, hour, minute, second)
+    return "2025-07-03T15:30:00"
 
 def check_sd_card():
     global sd_status, sd_mounted
@@ -304,46 +290,9 @@ def check_sd_card():
 
 def log_env_data(temperature, humidity, pressure):
     try:
-        check_sd_card()
-        
-        # Determine storage path - prefer SD card if available
-        if sd_mounted and sd_status == Status.CONNECTED:
-            base_dir = "/sd"
-            storage_type = "SD"
-        else:
-            base_dir = "/flash"
-            storage_type = "Flash"
-        
-        # Ensure directories exist
-        logs_dir = "{}/logs".format(base_dir)
-        measurements_dir = "{}/measurements".format(base_dir)
-        
-        try:
-            os.mkdir(logs_dir)
-        except:
-            pass
-        
-        try:
-            os.mkdir(measurements_dir)
-        except:
-            pass
-
-        timestamp = get_datetime_string()
-        
-        # Save JSON measurements to measurements folder
-        measurements_file = "{}/{}.json".format(measurements_dir, get_date_string())
-        measurement_entry = '{"timestamp":"' + str(timestamp) + '","temperature":' + str(temperature) + ',"humidity":' + str(humidity) + ',"pressure":' + str(pressure) + '}'
-        
-        with open(measurements_file, "a+") as fs:
-            fs.write(measurement_entry + "\n")
-        
-        # Log human-readable message using log_message function
-        log_message(LOG_INFO, "Logged ENV data to {}: T={:.1f}°C H={:.1f}% P={:.1f}hPa at {}".format(storage_type, temperature, humidity, pressure, timestamp))
-        
-        # Send data via MQTT
         send_mqtt_data(temperature, humidity, pressure)
-    except Exception as e:
-        log_message(LOG_ERROR, "Failed to log data: {}".format(e))
+    except:
+        pass
 
 def navigate_to_screen(screen_name):
     global current_screen
@@ -410,7 +359,7 @@ def update_footer():
 
 def show_status_screen():
     global title0, label_wifi, label_env, label_mqtt, label_sd
-    title0 = M5Title(title="System Status", x=3, fgcolor=0xffffff, bgcolor=0x0000ff)
+    title0 = M5Title(title="System Status", x=8, fgcolor=0xffffff, bgcolor=0x0000ff, h=32)
     label_wifi = M5TextBox(10, 50, "WiFi: Disconnected", lcd.FONT_Default, 0xff0000, rotate=0)
     label_env = M5TextBox(10, 70, "ENV: Disconnected", lcd.FONT_Default, 0xff0000, rotate=0)
     label_mqtt = M5TextBox(10, 90, "MQTT: Disconnected", lcd.FONT_Default, 0xff0000, rotate=0)
@@ -419,40 +368,43 @@ def show_status_screen():
     update_footer()
 
 def show_home_screen():
-    global title0, label_temp, label_hum, label_press
-    title0 = M5Title(title="ENV III Sensor", x=3, fgcolor=0xffffff, bgcolor=0x0000ff)
-    label_temp = M5TextBox(10, 50, "Temp: --°C", lcd.FONT_Default, 0xffffff, rotate=0)
+    global title_text, title_background, label_temp, label_hum, label_press
+    # title0 = M5Title(title="ENV III Sensor", x=8, fgcolor=0xffffff, bgcolor=0x0000ff, h=32)
+    title_background = M5Rect(0, 0, 320, 32, 0xff00ff, 0xff00ff)
+    title_text = M5TextBox(8, 8, "ENV III Sensor", lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+    
+    label_temp = M5TextBox(0, 50, "Temp: --°C", lcd.FONT_Default, 0xffffff, rotate=0)
     label_hum = M5TextBox(10, 70, "Humidity: --%", lcd.FONT_Default, 0xffffff, rotate=0)
     label_press = M5TextBox(10, 90, "Pressure: --hPa", lcd.FONT_Default, 0xffffff, rotate=0)
     create_footer()
     update_footer()
 
 def show_forecast_screen():
-    M5Title(title="Weather Forecast", x=3, fgcolor=0xffffff, bgcolor=0x0000ff)
+    M5Title(title="Weather Forecast", x=8, fgcolor=0xffffff, bgcolor=0x0000ff, h=32)
     M5TextBox(10, 50, "Forecast data will be displayed here", lcd.FONT_Default, 0xffffff, rotate=0)
     create_footer()
     update_footer()
 
 def show_temp_history_screen():
-    M5Title(title="Temperature History", x=3, fgcolor=0xffffff, bgcolor=0x0000ff)
+    M5Title(title="Temperature History", x=8, fgcolor=0xffffff, bgcolor=0x0000ff, h=32)
     M5TextBox(10, 50, "Temperature history will be displayed here", lcd.FONT_Default, 0xffffff, rotate=0)
     create_footer()
     update_footer()
 
 def show_humidity_history_screen():
-    M5Title(title="Humidity History", x=3, fgcolor=0xffffff, bgcolor=0x0000ff)
+    M5Title(title="Humidity History", x=8, fgcolor=0xffffff, bgcolor=0x0000ff, h=32)
     M5TextBox(10, 50, "Humidity history will be displayed here", lcd.FONT_Default, 0xffffff, rotate=0)
     create_footer()
     update_footer()
 
 def show_settings_screen():
-    M5Title(title="Settings", x=3, fgcolor=0xffffff, bgcolor=0x0000ff)
+    M5Title(title="Settings", x=8, fgcolor=0xffffff, bgcolor=0x0000ff, h=32)
     M5TextBox(10, 50, "Settings will be displayed here", lcd.FONT_Default, 0xffffff, rotate=0)
     create_footer()
     update_footer()
 
 def show_alert_screen():
-    M5Title(title="Alert", x=3, fgcolor=0xffffff, bgcolor=0xff0000)
+    M5Title(title="Alert", x=8, fgcolor=0xffffff, bgcolor=0xff0000, h=32)
     M5TextBox(10, 50, "Alert information will be displayed here", lcd.FONT_Default, 0xffffff, rotate=0)
     create_footer()
     update_footer()
@@ -486,80 +438,73 @@ def buttonC_wasPressed():
         next_screen = screen_navigation[current_screen]["C"]
         navigate_to_screen(next_screen)
 
-def update_sensor_labels(temperature=None, humidity=None, pressure=None):
-    global current_screen
+def update_sensor_labels():
+    global current_screen, current_sensor_temp, current_sensor_hum, current_sensor_press
     if current_screen == "home":
-        if temperature is not None:
-            label_temp.setText("Temp: {:.1f}°C".format(temperature))
+        if current_sensor_temp is not None:
+            label_temp.setText("Temp: {:.1f}°C".format(current_sensor_temp))
+            label_hum.setText("Humidity: {:.1f}%".format(current_sensor_hum))
+            label_press.setText("Pressure: {:.1f}hPa".format(current_sensor_press))
         else:
             label_temp.setText("Temp: --°C")
-        
-        if humidity is not None:
-            label_hum.setText("Humidity: {:.1f}%".format(humidity))
-        else:
             label_hum.setText("Humidity: --%")
-        
-        if pressure is not None:
-            label_press.setText("Pressure: {:.1f}hPa".format(pressure))
-        else:
             label_press.setText("Pressure: --hPa")
 
+def has_significant_change(temp, hum, press):
+    global last_sensor_temp, last_sensor_hum, last_sensor_press
+    if last_sensor_temp is None:
+        return True
+    
+    temp_changed = abs(temp - last_sensor_temp) > 0.5
+    hum_changed = abs(hum - last_sensor_hum) > 1.0
+    press_changed = abs(press - last_sensor_press) > 1.0
+    
+    return temp_changed or hum_changed or press_changed
+
 def update_status_labels():
-    global current_screen, last_displayed_wifi, last_displayed_env, last_displayed_mqtt, last_displayed_sd
+    global current_screen
     if current_screen == "status":
-        # Update WiFi status only if changed
-        if wifi_status != last_displayed_wifi:
-            if wifi_status == Status.CONNECTED:
-                label_wifi.setText("WiFi: Connected")
-                label_wifi.setColor(COLOR_GREEN)
-            elif wifi_status == Status.CONNECTING:
-                label_wifi.setText("WiFi: Connecting...")
-                label_wifi.setColor(COLOR_YELLOW)
-            else:
-                label_wifi.setText("WiFi: {}".format(status_to_string(wifi_status)))
-                label_wifi.setColor(COLOR_RED)
-            last_displayed_wifi = wifi_status
+        # Always update all status labels
+        if wifi_status == Status.CONNECTED:
+            label_wifi.setText("WiFi: Connected")
+            label_wifi.setColor(COLOR_GREEN)
+        elif wifi_status == Status.CONNECTING:
+            label_wifi.setText("WiFi: Connecting...")
+            label_wifi.setColor(COLOR_YELLOW)
+        else:
+            label_wifi.setText("WiFi: {}".format(status_to_string(wifi_status)))
+            label_wifi.setColor(COLOR_RED)
         
-        # Update ENV status only if changed
-        if env_status != last_displayed_env:
-            if env_status == Status.CONNECTED:
-                label_env.setText("ENV: Connected")
-                label_env.setColor(COLOR_GREEN)
-            elif env_status == Status.CONNECTING:
-                label_env.setText("ENV: Connecting...")
-                label_env.setColor(COLOR_YELLOW)
-            else:
-                label_env.setText("ENV: {}".format(status_to_string(env_status)))
-                label_env.setColor(COLOR_RED)
-            last_displayed_env = env_status
+        if env_status == Status.CONNECTED:
+            label_env.setText("ENV: Connected")
+            label_env.setColor(COLOR_GREEN)
+        elif env_status == Status.CONNECTING:
+            label_env.setText("ENV: Connecting...")
+            label_env.setColor(COLOR_YELLOW)
+        else:
+            label_env.setText("ENV: {}".format(status_to_string(env_status)))
+            label_env.setColor(COLOR_RED)
         
-        # Update MQTT status only if changed
-        if mqtt_status != last_displayed_mqtt:
-            if mqtt_status == Status.CONNECTED:
-                label_mqtt.setText("MQTT: Connected")
-                label_mqtt.setColor(COLOR_GREEN)
-            elif mqtt_status == Status.CONNECTING:
-                label_mqtt.setText("MQTT: Connecting...")
-                label_mqtt.setColor(COLOR_YELLOW)
-            else:
-                label_mqtt.setText("MQTT: {}".format(status_to_string(mqtt_status)))
-                label_mqtt.setColor(COLOR_RED)
-            last_displayed_mqtt = mqtt_status
+        if mqtt_status == Status.CONNECTED:
+            label_mqtt.setText("MQTT: Connected")
+            label_mqtt.setColor(COLOR_GREEN)
+        elif mqtt_status == Status.CONNECTING:
+            label_mqtt.setText("MQTT: Connecting...")
+            label_mqtt.setColor(COLOR_YELLOW)
+        else:
+            label_mqtt.setText("MQTT: {}".format(status_to_string(mqtt_status)))
+            label_mqtt.setColor(COLOR_RED)
         
-        # Update SD status only if changed
-        if sd_status != last_displayed_sd:
-            if sd_status == Status.CONNECTED:
-                label_sd.setText("SD: Connected")
-                label_sd.setColor(COLOR_GREEN)
-            elif sd_status == Status.CONNECTING:
-                label_sd.setText("SD: Connecting...")
-                label_sd.setColor(COLOR_YELLOW)
-            else:
-                label_sd.setText("SD: {}".format(status_to_string(sd_status)))
-                label_sd.setColor(COLOR_RED)
-            last_displayed_sd = sd_status
+        if sd_status == Status.CONNECTED:
+            label_sd.setText("SD: Connected")
+            label_sd.setColor(COLOR_GREEN)
+        elif sd_status == Status.CONNECTING:
+            label_sd.setText("SD: Connecting...")
+            label_sd.setColor(COLOR_YELLOW)
+        else:
+            label_sd.setText("SD: {}".format(status_to_string(sd_status)))
+            label_sd.setColor(COLOR_RED)
         
-        # Update footer when status changes (for status screen navigation availability)
         update_footer()
         
         # Auto-navigate to home when all required connections are ready
@@ -582,7 +527,6 @@ check_wifi_connection()
 check_env_connection()
 check_mqtt_connection()
 check_sd_card()
-fetch_time()
 
 while True:
     current_time = time.ticks_ms()
@@ -619,26 +563,32 @@ while True:
             humidity = env3_0.humidity
             pressure = env3_0.pressure
             
-            # Check if values changed significantly
-            '''
-            temp_changed = last_temp is None or abs(temp - last_temp) > 0.5
-            hum_changed = last_hum is None or abs(humidity - last_hum) > 1.0
-            press_changed = last_press is None or abs(pressure - last_press) > 1.0
-            
-            if temp_changed or hum_changed or press_changed:
-            '''
-            
-            if True:
+            # Check if values changed significantly and log if needed
+            if has_significant_change(temp, humidity, pressure):
                 log_env_data(temp, humidity, pressure)
-                last_temp = temp
-                last_hum = humidity
-                last_press = pressure
+                print("Sensor: {:.1f}°C, {:.1f}%, {:.1f}hPa".format(temp, humidity, pressure))
+                
+                # Update last values
+                last_sensor_temp = current_sensor_temp
+                last_sensor_hum = current_sensor_hum
+                last_sensor_press = current_sensor_press
             
-            update_sensor_labels(temp, humidity, pressure)
+            # Update current values
+            current_sensor_temp = temp
+            current_sensor_hum = humidity
+            current_sensor_press = pressure
+            
+            update_sensor_labels()
         except:
+            current_sensor_temp = None
+            current_sensor_hum = None
+            current_sensor_press = None
             update_sensor_labels()
             env3_0 = None
     else:
+        current_sensor_temp = None
+        current_sensor_hum = None
+        current_sensor_press = None
         update_sensor_labels()
     
     wait_ms(1000)
