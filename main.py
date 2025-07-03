@@ -59,18 +59,23 @@ screen_navigation = {
 }
 
 current_screen = "status"
-title0 = M5Title(title="ENV III Sensor", x=8, fgcolor=0xffffff, bgcolor=0x0000ff, h=32)
+title0 = M5Title(title="ENV III Sensor", x=8, fgcolor=0x000000, bgcolor=0x000000, h=32)
 
 env3_0 = None
 ntp = None
 
-label_temp = M5TextBox(10, 50, "Temp: --°C", lcd.FONT_Default, 0xffffff, rotate=0)
-label_hum = M5TextBox(10, 70, "Humidity: --%", lcd.FONT_Default, 0xffffff, rotate=0)
-label_press = M5TextBox(10, 90, "Pressure: --hPa", lcd.FONT_Default, 0xffffff, rotate=0)
-label_wifi = M5TextBox(10, 110, "WiFi: Disconnected", lcd.FONT_Default, 0xff0000, rotate=0)
-label_env = M5TextBox(10, 130, "ENV: Disconnected", lcd.FONT_Default, 0xff0000, rotate=0)
-label_mqtt = M5TextBox(10, 150, "MQTT: Disconnected", lcd.FONT_Default, 0xff0000, rotate=0)
-label_sd = M5TextBox(10, 170, "SD: Disconnected", lcd.FONT_Default, 0xff0000, rotate=0)
+label_temp = None
+label_hum = None
+label_press = None
+label_condition = None
+label_wind = None
+label_location = None
+image_condition = None
+
+label_wifi = None
+label_env = None
+label_mqtt = None
+label_sd = None
 
 wifi_ssid = "lightsaber"
 wifi_password = "skywalker"
@@ -87,6 +92,10 @@ weather_alert = None
 # Minimal weather data - just basic values
 weather_temp = 0.0
 weather_condition = ""
+current_icon_file = "unknown.png"
+weather_condition_description = ""
+current_wind = ""
+current_location = ""
 
 # Simplified sensor data - use global variables
 current_sensor_temp = None
@@ -109,6 +118,44 @@ sd_mounted = False
 footer_a = None
 footer_b = None
 footer_c = None
+
+weather_icon_mapping = {
+    # Clear sky
+    '01d': 'clear.png',
+    '01n': 'nt_clear.png',
+    
+    # Few clouds
+    '02d': 'mostlysunny.png',
+    '02n': 'nt_mostlycloudy.png',
+    
+    # Scattered clouds
+    '03d': 'partlycloudy.png', 
+    '03n': 'nt_partlycloudy.png',
+    
+    # Broken clouds
+    '04d': 'cloudy.png',
+    '04n': 'nt_cloudy.png',
+    
+    # Shower rain
+    '09d': 'rain.png',
+    '09n': 'nt_rain.png',
+    
+    # Rain
+    '10d': 'rain.png',
+    '10n': 'nt_rain.png',
+    
+    # Thunderstorm
+    '11d': 'tstorms.png',
+    '11n': 'nt_tstorms.png',
+    
+    # Snow
+    '13d': 'snow.png',
+    '13n': 'nt_snow.png',
+    
+    # Mist
+    '50d': 'fog.png',
+    '50n': 'nt_fog.png'
+}
 
 def fetch_time():
     global ntp
@@ -164,11 +211,37 @@ def check_env_connection():
     return result
 
 def parse_weather_data(data):
-    global weather_temp, weather_condition
+    global weather_temp, weather_condition, current_icon_file, weather_condition_description, current_wind, current_location
     try:
         weather_temp = data.get("current_temp", 0.0)
         weather_condition = data.get("condition", "")
-        print("Weather: {:.1f}C {}".format(weather_temp, weather_condition))
+        current_icon = data.get("current_icon", "")
+        wind_speed = data.get("wind_speed", "")
+        wind_direction = data.get("wind_direction", "")
+        current_location = data.get("location", "Unknown")
+
+        weather_condition_description = "Outside: {:.1f}C, {}".format(weather_temp, weather_condition)
+        current_wind = "Wind: {} m/s, {}".format(wind_speed, wind_direction)
+
+        old_icon_file = current_icon_file
+
+        print(current_screen)
+
+        if current_icon in weather_icon_mapping:
+                current_icon_file = weather_icon_mapping[current_icon]
+        else:
+            current_icon_file = "unknown.png"
+        
+        if current_screen == "home":            
+            label_condition.setText(weather_condition_description)
+            label_wind.setText(current_wind)
+            #label_location.setText(label_location)
+            if current_icon_file != old_icon_file:
+                image_condition.hide()
+                image_condition.changeImg("res/{}".format(current_icon_file))
+                image_condition.show()
+
+        print("Weather: {:.1f}C {} Icon: {}".format(weather_temp, weather_condition, current_icon))
     except:
         pass
 
@@ -179,6 +252,7 @@ def mqtt_callback(topic, msg):
         msg_str = msg.decode('utf-8')
         
         if topic_str == 'weather/data':
+            print("Received weather data on topic '{}': {}".format(topic_str, msg_str))
             weather_data = ujson.loads(msg_str)
             parse_weather_data(weather_data)
         elif topic_str == 'weather/alert_trigger':
@@ -246,10 +320,15 @@ def send_mqtt_data(temperature, humidity, pressure):
         return False
 
 def get_date_string():
-    return "2025-07-03"
+    if ntp is None:
+        fetch_time()
+    return ntp.formatDate('-')
 
 def get_datetime_string():
-    return "2025-07-03T15:30:00"
+    if ntp is None:
+        fetch_time()
+    year, month, day, _, hour, minute, second, _ = rtc.datetime()
+    return "{:04d}-{:02d}-{:02d}T{:02d}:{:02d}:{:02d}".format(year, month, day, hour, minute, second)
 
 def check_sd_card():
     global sd_status, sd_mounted
@@ -318,12 +397,6 @@ def clear_screen():
     lcd.clear()
     setScreenColor(0x111111)
 
-def create_footer():
-    global footer_a, footer_b, footer_c
-    footer_a = M5TextBox(10, 220, "A:", lcd.FONT_Default, 0x888888, rotate=0)
-    footer_b = M5TextBox(120, 220, "B:", lcd.FONT_Default, 0x888888, rotate=0)
-    footer_c = M5TextBox(230, 220, "C:", lcd.FONT_Default, 0x888888, rotate=0)
-
 def get_page_name(screen_id):
     if screen_id == "status":
         return "Status"
@@ -332,9 +405,9 @@ def get_page_name(screen_id):
     elif screen_id == "forecast":
         return "Forecast"
     elif screen_id == "temp_history":
-        return "Temp"
+        return "History"
     elif screen_id == "humidity_history":
-        return "Humidity"
+        return "Humid"
     elif screen_id == "settings":
         return "Settings"
     elif screen_id == "alert":
@@ -357,55 +430,82 @@ def update_footer():
             footer_b.setText(get_page_name(nav.get("B", "--")))
             footer_c.setText(get_page_name(nav.get("C", "--")))
 
+def show_header(name):
+    global title_text, title_background
+    title_background = M5Rect(0, 0, 320, 32, 0x262626, 0x262626)
+    title_text = M5TextBox(8, 8, name, lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+
+def create_footer():
+    global footer_background, footer_a, footer_b, footer_c
+    footer_background = M5Rect(0, 208, 320, 32, 0x262626, 0x262626)
+    footer_a = M5TextBox(32, 216, "", lcd.FONT_DejaVu18, 0x888888, rotate=0)
+    footer_b = M5TextBox(126, 216, "", lcd.FONT_DejaVu18, 0x888888, rotate=0)
+    footer_c = M5TextBox(222, 216, "", lcd.FONT_DejaVu18, 0x888888, rotate=0)
+
+
 def show_status_screen():
-    global title0, label_wifi, label_env, label_mqtt, label_sd
-    title0 = M5Title(title="System Status", x=8, fgcolor=0xffffff, bgcolor=0x0000ff, h=32)
-    label_wifi = M5TextBox(10, 50, "WiFi: Disconnected", lcd.FONT_Default, 0xff0000, rotate=0)
-    label_env = M5TextBox(10, 70, "ENV: Disconnected", lcd.FONT_Default, 0xff0000, rotate=0)
-    label_mqtt = M5TextBox(10, 90, "MQTT: Disconnected", lcd.FONT_Default, 0xff0000, rotate=0)
-    label_sd = M5TextBox(10, 110, "SD: Disconnected", lcd.FONT_Default, 0xff0000, rotate=0)
+    show_header("System Status")
+
+    global label_wifi, label_env, label_mqtt, label_sd
+    
+    label_wifi = M5TextBox(8, 48, "WiFi: Disconnected", lcd.FONT_DejaVu18, 0xff0000, rotate=0)
+    label_env = M5TextBox(8, 78, "ENV: Disconnected", lcd.FONT_DejaVu18, 0xff0000, rotate=0)
+    label_mqtt = M5TextBox(8, 108, "MQTT: Disconnected", lcd.FONT_DejaVu18, 0xff0000, rotate=0)
+    label_sd = M5TextBox(8, 138, "SD: Disconnected", lcd.FONT_DejaVu18, 0xff0000, rotate=0)
     create_footer()
     update_footer()
 
 def show_home_screen():
-    global title_text, title_background, label_temp, label_hum, label_press
-    # title0 = M5Title(title="ENV III Sensor", x=8, fgcolor=0xffffff, bgcolor=0x0000ff, h=32)
-    title_background = M5Rect(0, 0, 320, 32, 0xff00ff, 0xff00ff)
-    title_text = M5TextBox(8, 8, "ENV III Sensor", lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+    show_header("Home Screen")
     
-    label_temp = M5TextBox(0, 50, "Temp: --°C", lcd.FONT_Default, 0xffffff, rotate=0)
-    label_hum = M5TextBox(10, 70, "Humidity: --%", lcd.FONT_Default, 0xffffff, rotate=0)
-    label_press = M5TextBox(10, 90, "Pressure: --hPa", lcd.FONT_Default, 0xffffff, rotate=0)
+    global label_temp, label_hum, label_press, label_condition, image_condition, label_wind, label_location
+    
+    label_temp = M5TextBox(8, 48, "Temp: --°C", lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+    label_hum = M5TextBox(8, 74, "Humidity: --%", lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+    label_press = M5TextBox(8, 100, "Pressure: --hPa", lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+    label_condition = M5TextBox(8, 126, weather_condition_description, lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+    label_wind = M5TextBox(8, 152, current_wind, lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+    # label_location = M5TextBox(8, 178, current_location, lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+    
+    image_condition = M5Img(248, 44, "res/" + current_icon_file, True)
+
+    update_sensor_labels()
+
     create_footer()
     update_footer()
 
 def show_forecast_screen():
-    M5Title(title="Weather Forecast", x=8, fgcolor=0xffffff, bgcolor=0x0000ff, h=32)
-    M5TextBox(10, 50, "Forecast data will be displayed here", lcd.FONT_Default, 0xffffff, rotate=0)
+    show_header("Weather Forecast")
+
+    M5TextBox(10, 50, "Forecast data will be displayed here", lcd.FONT_DejaVu18, 0xffffff, rotate=0)
     create_footer()
     update_footer()
 
 def show_temp_history_screen():
-    M5Title(title="Temperature History", x=8, fgcolor=0xffffff, bgcolor=0x0000ff, h=32)
-    M5TextBox(10, 50, "Temperature history will be displayed here", lcd.FONT_Default, 0xffffff, rotate=0)
+    show_header("Temperature History")
+    
+    M5TextBox(10, 50, "Temperature history will be displayed here", lcd.FONT_DejaVu18, 0xffffff, rotate=0)
     create_footer()
     update_footer()
 
 def show_humidity_history_screen():
-    M5Title(title="Humidity History", x=8, fgcolor=0xffffff, bgcolor=0x0000ff, h=32)
-    M5TextBox(10, 50, "Humidity history will be displayed here", lcd.FONT_Default, 0xffffff, rotate=0)
+    show_header("Humidity History")
+    
+    M5TextBox(10, 50, "Humidity history will be displayed here", lcd.FONT_DejaVu18, 0xffffff, rotate=0)
     create_footer()
     update_footer()
 
 def show_settings_screen():
-    M5Title(title="Settings", x=8, fgcolor=0xffffff, bgcolor=0x0000ff, h=32)
-    M5TextBox(10, 50, "Settings will be displayed here", lcd.FONT_Default, 0xffffff, rotate=0)
+    show_header("Settings")
+    
+    M5TextBox(10, 50, "Settings will be displayed here", lcd.FONT_DejaVu18, 0xffffff, rotate=0)
     create_footer()
     update_footer()
 
 def show_alert_screen():
-    M5Title(title="Alert", x=8, fgcolor=0xffffff, bgcolor=0xff0000, h=32)
-    M5TextBox(10, 50, "Alert information will be displayed here", lcd.FONT_Default, 0xffffff, rotate=0)
+    show_header("Weather Alert")
+    
+    M5TextBox(10, 50, "Alert information will be displayed here", lcd.FONT_DejaVu18, 0xffffff, rotate=0)
     create_footer()
     update_footer()
 
