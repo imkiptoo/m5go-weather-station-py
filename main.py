@@ -129,16 +129,16 @@ weather_icon_mapping = {
     '02n': 'nt_mostlycloudy.png',
     
     # Scattered clouds
-    '03d': 'partlycloudy.png', 
-    '03n': 'nt_partlycloudy.png',
+    '03d': 'mostlycloudy.png', 
+    '03n': 'mostlycloudy.png',
     
     # Broken clouds
     '04d': 'cloudy.png',
     '04n': 'nt_cloudy.png',
     
     # Shower rain
-    '09d': 'rain.png',
-    '09n': 'nt_rain.png',
+    '09d': 'sleet.png',
+    '09n': 'nt_sleet.png',
     
     # Rain
     '10d': 'rain.png',
@@ -532,11 +532,11 @@ def show_forecast_screen():
     print("Icons:", forecast_icons)
     
     # Add degree symbol in top right
-    temp_unit = M5TextBox(280, 8, "°C", lcd.FONT_DejaVu12, 0xffffff, rotate=0)
+    temp_unit = M5TextBox(280, 8, "°C", lcd.FONT_DejaVu18, 0xffffff, rotate=0)
     
     # Layout for 5 days across 320px screen with some margin
     col_width = 60  # Slightly smaller to add margins
-    start_x = 10   # Start with small margin from left edge
+    start_x = 8   # Start with small margin from left edge
     
     # Create forecast for all 5 days
     for i in range(5):
@@ -547,15 +547,15 @@ def show_forecast_screen():
             day_text = "TOD"  # Shortened to fit
         else:
             day_text = forecast_days[i][:3]  # MON, TUE, etc.
-        M5TextBox(x_pos, 40, day_text, lcd.FONT_DejaVu12, 0xffffff, rotate=0)
+        M5TextBox(x_pos, 48, day_text, lcd.FONT_DejaVu18, 0xffffff, rotate=0)
         
         # Date (remove month, just day)
         date_short = forecast_dates[i].split('/')[1] if '/' in forecast_dates[i] else forecast_dates[i]
-        M5TextBox(x_pos + 5, 55, date_short, lcd.FONT_DejaVu12, 0xffffff, rotate=0)
+        M5TextBox(x_pos, 74, date_short, lcd.FONT_DejaVu18, 0xffffff, rotate=0)
         
         # Weather icon (try image first, fallback to text)
         try:
-            M5Img(x_pos + 5, 75, "res/{}".format(forecast_icons[i]), True)
+            M5Img(x_pos, 98, "res/w32/{}".format(forecast_icons[i]), True)
         except:
             # Fallback weather icons - use single characters
             if "rain" in forecast_icons[i]:
@@ -568,15 +568,15 @@ def show_forecast_screen():
                 icon_char = "N"
             else:
                 icon_char = "?"
-            M5TextBox(x_pos + 15, 75, icon_char, lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+            M5TextBox(x_pos, 106, icon_char, lcd.FONT_DejaVu18, 0xffffff, rotate=0)
         
         # Temperature 
         temp_text = forecast_temps[i]
-        M5TextBox(x_pos, 125, temp_text, lcd.FONT_DejaVu12, 0xffffff, rotate=0)
+        M5TextBox(x_pos, 150, temp_text, lcd.FONT_DejaVu18, 0xffffff, rotate=0)
         
         # Humidity
         humid_text = forecast_humidity[i]
-        M5TextBox(x_pos, 145, humid_text, lcd.FONT_DejaVu12, 0xffffff, rotate=0)
+        M5TextBox(x_pos, 176, humid_text, lcd.FONT_DejaVu18, 0xffffff, rotate=0)
     
     create_footer()
     update_footer()
