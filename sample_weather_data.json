@@ -54,13 +54,13 @@
     }
   ],
   "history": [
-    { "day": "SAT", "date": "28/06", "temp": 32.0, "humidity": 93 },
-    { "day": "SUN", "date": "29/06", "temp": 31.0, "humidity": 90 },
-    { "day": "MON", "date": "30/06", "temp": 34.0, "humidity": 87 },
-    { "day": "TUE", "date": "01/07", "temp": 28.0, "humidity": 84 },
-    { "day": "WED", "date": "02/07", "temp": 32.0, "humidity": 81 },
-    { "day": "THU", "date": "03/07", "temp": 27.0, "humidity": 78 },
-    { "day": "TODAY", "date": "04/07", "temp": 17.62, "humidity": 75 }
+    { "day": "SAT", "date": "28/06", "temp": 32.0, "humidity": 85 },
+    { "day": "SUN", "date": "29/06", "temp": 31.0, "humidity": 72 },
+    { "day": "MON", "date": "30/06", "temp": 34.0, "humidity": 68 },
+    { "day": "TUE", "date": "01/07", "temp": 28.0, "humidity": 91 },
+    { "day": "WED", "date": "02/07", "temp": 32.0, "humidity": 76 },
+    { "day": "THU", "date": "03/07", "temp": 27.0, "humidity": 82 },
+    { "day": "TODAY", "date": "04/07", "temp": 17.62, "humidity": 84 }
   ],
   "timestamp": "2025-07-04T00:47:36.578326500Z"
 }
