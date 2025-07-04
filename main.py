@@ -75,6 +75,7 @@ label_wifi = None
 label_env = None
 label_mqtt = None
 label_sd = None
+label_temp_unit = None
 
 wifi_ssid = "lightsaber"
 wifi_password = "skywalker"
@@ -110,6 +111,33 @@ env_status = Status.DISCONNECTED
 mqtt_status = Status.DISCONNECTED
 sd_status = Status.DISCONNECTED
 sd_mounted = False
+
+# Temperature unit setting
+temperature_unit = "C"  # "C" for Celsius, "F" for Fahrenheit
+
+# Temperature conversion functions
+def celsius_to_fahrenheit(celsius):
+    """Convert Celsius to Fahrenheit"""
+    return (celsius * 9.0 / 5.0) + 32.0
+
+def fahrenheit_to_celsius(fahrenheit):
+    """Convert Fahrenheit to Celsius"""
+    return (fahrenheit - 32.0) * 5.0 / 9.0
+
+def format_temperature(temp_celsius, show_unit=True):
+    """Format temperature according to current unit setting"""
+    global temperature_unit
+    
+    if temperature_unit == "F":
+        temp_value = temp_celsius * 1.8 + 32.0
+        return "{:.1f}°F".format(temp_value) if show_unit else "{:.1f}".format(temp_value)
+    else:
+        return "{:.1f}°C".format(temp_celsius) if show_unit else "{:.1f}".format(temp_celsius)
+
+def get_temperature_unit_symbol():
+    """Get the current temperature unit symbol"""
+    global temperature_unit
+    return "°F" if temperature_unit == "F" else "°C"
 
 # Removed status tracking to save memory
 
@@ -239,7 +267,7 @@ def parse_forecast_data(weather_data):
                     
                     # Update temperatures
                     temp = day_data.get('temp', 0)
-                    forecast_temps[i] = "{:.0f}°".format(temp)
+                    forecast_temps[i] = format_temperature(temp, False) + "°"
                     
                     # Update humidity
                     humidity = day_data.get('humidity', 0)
@@ -251,10 +279,8 @@ def parse_forecast_data(weather_data):
                         forecast_icons[i] = weather_icon_mapping[icon_code]
                     else:
                         forecast_icons[i] = "unknown.png"
-                        
-            print("Forecast data updated successfully")
     except Exception as e:
-        print("Error parsing forecast data: {}".format(e))
+        pass
 
 def parse_history_data(weather_data):
     """Parse historical data from weather JSON and update history display variables"""
@@ -278,10 +304,8 @@ def parse_history_data(weather_data):
                     # Update humidity (direct from humidity field)
                     humidity = day_data.get('humidity', 0)
                     history_humidity[i] = "{}%".format(humidity)
-                        
-            print("History data updated from MQTT successfully")
     except Exception as e:
-        print("Error parsing history data: {}".format(e))
+        pass
 
 def parse_weather_data(data):
     global weather_temp, weather_condition, current_icon_file, weather_condition_description, current_wind, current_location
@@ -293,12 +317,10 @@ def parse_weather_data(data):
         wind_direction = data.get("wind_direction", "")
         current_location = data.get("location", "Unknown")
 
-        weather_condition_description = "O: {:.1f}C, {}".format(weather_temp, weather_condition)
+        weather_condition_description = "O: {}, {}".format(format_temperature(weather_temp, True), weather_condition)
         current_wind = "Wind: {} m/s, {}".format(wind_speed, wind_direction)
 
         old_icon_file = current_icon_file
-
-        print(current_screen)
 
         if current_icon in weather_icon_mapping:
             current_icon_file = weather_icon_mapping[current_icon]
@@ -310,20 +332,14 @@ def parse_weather_data(data):
         
         # Update history data as well
         parse_history_data(data)
-
-        print("Set weather condition: {}".format(weather_condition_description))
         
         if current_screen == "home":            
             label_condition.setText(weather_condition_description)
             label_wind.setText(current_wind)
-            #label_location.setText(label_location)
-            print(current_icon_file)
             if current_icon_file != old_icon_file:
                 image_condition.hide()
                 image_condition.changeImg("res/{}".format(current_icon_file))
                 image_condition.show()
-
-        print("Weather: {:.1f}C {} Icon: {}".format(weather_temp, weather_condition, current_icon))
     except:
         pass
 
@@ -334,13 +350,12 @@ def mqtt_callback(topic, msg):
         msg_str = msg.decode('utf-8')
         
         if topic_str == 'weather/data':
-            print("Received weather data on topic '{}': {}".format(topic_str, msg_str))
             weather_data = ujson.loads(msg_str)
             parse_weather_data(weather_data)
         elif topic_str == 'weather/alert_trigger':
             weather_alert = ujson.loads(msg_str)
     except Exception as e:
-        print("MQTT callback error: {}".format(e))
+        pass
 
 def check_mqtt_connection():
     global mqtt_client, mqtt_status, current_screen
@@ -497,7 +512,12 @@ def get_temp_color(temp):
     """Calculate color based on dynamic temperature scale with ±3°C buffer (yellow/light green to orange)"""
     global history_temps
     
-    # Find min and max temperatures in the current history data
+    # Convert temperature to Celsius for consistent color calculation
+    temp_celsius = temp
+    if temperature_unit == "F":
+        temp_celsius = fahrenheit_to_celsius(temp)
+    
+    # Find min and max temperatures in the current history data (assuming they're in Celsius)
     if len(history_temps) > 0:
         min_temp = min(history_temps)
         max_temp = max(history_temps)
@@ -511,13 +531,13 @@ def get_temp_color(temp):
         max_temp = 40
     
     # Clamp temperature to calculated range
-    if temp <= min_temp:
+    if temp_celsius <= min_temp:
         return 0x9acd32  # Yellow-green (light green)
-    elif temp >= max_temp:
+    elif temp_celsius >= max_temp:
         return 0xff8c00  # Dark orange
     else:
         # Linear interpolation from yellow-green to orange
-        ratio = (temp - min_temp) / (max_temp - min_temp)  # 0.0 to 1.0
+        ratio = (temp_celsius - min_temp) / (max_temp - min_temp)  # 0.0 to 1.0
         
         # Yellow-green (0x9acd32) to orange (0xff8c00)
         # Yellow-green: R=154, G=205, B=50
@@ -680,16 +700,8 @@ def show_forecast_screen():
     
     show_header("5-Day Forecast")
     
-    # Debug: print forecast data to console
-    print("Forecast data:")
-    print("Days:", forecast_days)
-    print("Dates:", forecast_dates)
-    print("Temps:", forecast_temps)
-    print("Humidity:", forecast_humidity)
-    print("Icons:", forecast_icons)
-    
     # Add degree symbol in top right
-    temp_unit = M5TextBox(280, 8, "°C", lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+    temp_unit = M5TextBox(280, 8, get_temperature_unit_symbol(), lcd.FONT_DejaVu18, 0xffffff, rotate=0)
     
     # Layout for 5 days across 320px screen with some margin
     col_width = 60  # Slightly smaller to add margins
@@ -728,12 +740,10 @@ def show_forecast_screen():
             M5TextBox(x_pos, 106, icon_char, lcd.FONT_DejaVu18, 0xffffff, rotate=0)
         
         # Temperature 
-        temp_text = forecast_temps[i]
-        M5TextBox(x_pos, 150, temp_text, lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+        M5TextBox(x_pos, 150, forecast_temps[i], lcd.FONT_DejaVu18, 0xffffff, rotate=0)
         
         # Humidity
-        humid_text = forecast_humidity[i]
-        M5TextBox(x_pos, 176, humid_text, lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+        M5TextBox(x_pos, 176, forecast_humidity[i], lcd.FONT_DejaVu18, 0xffffff, rotate=0)
     
     create_footer()
     update_footer()
@@ -743,15 +753,8 @@ def show_history_screen():
     
     show_header("Past 5 Days")
     
-    # Debug: print history data to console
-    print("History data:")
-    print("Days:", history_times)
-    print("Dates:", history_dates)
-    print("Temps:", history_temps)
-    print("Humidity:", history_humidity)
-    
     # Add degree symbol and % symbol in top right
-    temp_unit = M5TextBox(260, 8, "°C", lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+    temp_unit = M5TextBox(260, 8, get_temperature_unit_symbol(), lcd.FONT_DejaVu18, 0xffffff, rotate=0)
     humid_unit = M5TextBox(290, 8, "%", lcd.FONT_DejaVu18, 0xffffff, rotate=0)
     
     # Layout for 5 time periods across 320px screen with some margin
@@ -793,21 +796,20 @@ def show_history_screen():
         
         # Temperature bar (left side)
         temp_bar_x = x_pos + 8  # Center the pair of bars in the column
-        temp_bar_y = 98 + (max_bar_height - temp_bar_height)  # Position from bottom of bar area
+        temp_bar_y = 82 + (max_bar_height - temp_bar_height)  # Position from bottom of bar area
         M5Rect(temp_bar_x, temp_bar_y, bar_width, temp_bar_height, temp_bar_color, temp_bar_color)
         
         # Humidity bar (right side)
         humidity_bar_x = temp_bar_x + bar_spacing
-        humidity_bar_y = 98 + (max_bar_height - humidity_bar_height)  # Position from bottom of bar area
+        humidity_bar_y = 82 + (max_bar_height - humidity_bar_height)  # Position from bottom of bar area
         M5Rect(humidity_bar_x, humidity_bar_y, bar_width, humidity_bar_height, humidity_bar_color, humidity_bar_color)
         
         # Temperature value below the bars
-        temp_text = "{:.1f}°".format(temp)
-        M5TextBox(x_pos, 170, temp_text, lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+        temp_text = format_temperature(temp, False) + "°"
+        M5TextBox(x_pos, 154, temp_text, lcd.FONT_DejaVu18, 0xffffff, rotate=0)
         
         # Humidity percentage
-        humid_text = history_humidity[i]
-        M5TextBox(x_pos, 190, humid_text, lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+        M5TextBox(x_pos, 180, history_humidity[i], lcd.FONT_DejaVu18, 0xffffff, rotate=0)
     
     create_footer()
     update_footer()
@@ -815,9 +817,25 @@ def show_history_screen():
 def show_settings_screen():
     show_header("Settings")
     
-    M5TextBox(10, 50, "Settings will be displayed here", lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+    global label_temp_unit, label_wifi, label_env, label_mqtt, label_sd
+    
+    # Show temperature unit setting only (simplified)
+    label_temp_unit = M5TextBox(8, 48, "Temperature Unit: {}".format(get_temperature_unit_symbol()), lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+    
+    # Instructions for changing unit
+    M5TextBox(8, 70, "Double-tap C to change unit", lcd.FONT_DejaVu18, 0x888888, rotate=0)
+    
+    label_wifi = M5TextBox(8, 100, "", lcd.FONT_DejaVu18, 0x888888, rotate=0)
+    label_env = M5TextBox(8, 125, "", lcd.FONT_DejaVu18, COLOR_RED, rotate=0)
+    label_mqtt = M5TextBox(8, 150, "", lcd.FONT_DejaVu18, COLOR_RED, rotate=0)
+    label_sd = M5TextBox(8, 175, "", lcd.FONT_DejaVu18, COLOR_RED, rotate=0)
+
+    
     create_footer()
     update_footer()
+    
+    # Update status labels with current status
+    update_status_labels()
 
 def show_alert_screen():
     show_header("Weather Alert")
@@ -847,8 +865,24 @@ def buttonB_wasPressed():
         next_screen = screen_navigation[current_screen]["B"]
         navigate_to_screen(next_screen)
 
+def buttonC_wasDoublePress():
+    """Handle double-press of button C to toggle temperature unit"""
+    global temperature_unit
+    
+    # Toggle temperature unit
+    if temperature_unit == "C":
+        temperature_unit = "F"
+    else:
+        temperature_unit = "C"
+    
+    # Update the settings screen display if currently on settings
+    if current_screen == "settings":
+        label_temp_unit.setText("Temperature Unit: {}".format(get_temperature_unit_symbol()))
+
 def buttonC_wasPressed():
     global current_screen
+    
+    # Normal navigation behavior
     if current_screen == "status" and not can_navigate_from_status():
         return
     if current_screen in screen_navigation and "C" in screen_navigation[current_screen]:
@@ -859,11 +893,11 @@ def update_sensor_labels():
     global current_screen, current_sensor_temp, current_sensor_hum, current_sensor_press
     if current_screen == "home":
         if current_sensor_temp is not None:
-            label_temp.setText("Temp: {:.1f}°C".format(current_sensor_temp))
+            label_temp.setText("Temp: {}".format(format_temperature(current_sensor_temp, True)))
             label_hum.setText("Humidity: {:.1f}%".format(current_sensor_hum))
             label_press.setText("Pressure: {:.1f}hPa".format(current_sensor_press))
         else:
-            label_temp.setText("Temp: --°C")
+            label_temp.setText("Temp: --{}".format(get_temperature_unit_symbol()))
             label_hum.setText("Humidity: --%")
             label_press.setText("Pressure: --hPa")
 
@@ -880,7 +914,7 @@ def has_significant_change(temp, hum, press):
 
 def update_status_labels():
     global current_screen
-    if current_screen == "status":
+    if current_screen == "status" or current_screen == "settings":
         # Always update all status labels
         if wifi_status == Status.CONNECTED:
             label_wifi.setText("WiFi: Connected")
@@ -924,12 +958,11 @@ def update_status_labels():
         
         update_footer()
         
-        # Auto-navigate to home when all required connections are ready
-        if can_navigate_from_status():
+        # Auto-navigate to home when all required connections are ready (only from status screen)
+        if current_screen == "status" and can_navigate_from_status():
             navigate_to_screen("home")
 
 print("Starting M5GO ENV III Sensor System...")
-print("WiFi: {}, ENV: {}, MQTT: {}, SD: {}".format(status_to_string(wifi_status), status_to_string(env_status), status_to_string(mqtt_status), status_to_string(sd_status)))
 
 # Initialize status screen immediately to show connection progress
 navigate_to_screen("status")
@@ -938,6 +971,12 @@ navigate_to_screen("status")
 btnA.wasPressed(buttonA_wasPressed)
 btnB.wasPressed(buttonB_wasPressed)
 btnC.wasPressed(buttonC_wasPressed)
+
+# Try to set up double-press callback if available
+try:
+    btnC.wasDoublePress(buttonC_wasDoublePress)
+except:
+    pass
 
 # Start connection attempts - user can see progress on status screen
 check_wifi_connection()
@@ -983,7 +1022,6 @@ while True:
             # Check if values changed significantly and log if needed
             if has_significant_change(temp, humidity, pressure):
                 log_env_data(temp, humidity, pressure)
-                print("Sensor: {:.1f}°C, {:.1f}%, {:.1f}hPa".format(temp, humidity, pressure))
                 
                 # Update last values
                 last_sensor_temp = current_sensor_temp
