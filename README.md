@@ -22,29 +22,36 @@ A comprehensive weather monitoring system for the M5GO device with ENV III senso
 ## Screenshots
 
 ### Home Screen
-![Home Screen](screenshots/home.jpg)
+<img src="screenshots/home.jpg" alt="Home Screen" width="320"/>
+
 *Real-time sensor readings and current weather conditions*
 
 ### Forecast Screen
-![Forecast Screen](screenshots/forecast.jpg)
+<img src="screenshots/forecast.jpg" alt="Forecast Screen" width="320"/>
+
 *5-day weather forecast with icons and detailed data*
 
 ### History Screen
-![History Screen](screenshots/history.jpg)
+<img src="screenshots/history.jpg" alt="History Screen" width="320"/>
+
 *Past 5 days of weather data with visual bar charts*
 
 ### Settings Screen
-![Settings Screen](screenshots/settings.jpg)
+<img src="screenshots/settings.jpg" alt="Settings Screen" width="320"/>
+
 *Configuration options and connection status*
 
 ### Alert Screens
-![Emergency Alert](screenshots/alert-emergency.jpg)
+<img src="screenshots/alert-emergency.jpg" alt="Emergency Alert" width="320"/>
+
 *Emergency weather alert with red background*
 
-![Warning Alert](screenshots/alert-warning.jpg)
+<img src="screenshots/alert-warning.jpg" alt="Warning Alert" width="320"/>
+
 *Warning weather alert with yellow background*
 
-![Info Alert](screenshots/alert-info.jpg)
+<img src="screenshots/alert-info.jpg" alt="Info Alert" width="320"/>
+
 *Info weather alert with blue background*
 
 ## Screen Navigation
