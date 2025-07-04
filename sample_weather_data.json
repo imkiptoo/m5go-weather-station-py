@@ -2,59 +2,65 @@
   "location": "LAT: 48.7758, LON: 9.1829",
   "gps_lat": 48.7758,
   "gps_lon": 9.1829,
-  "condition": "clear sky",
-  "current_icon": "01n",
-  "wind_speed": 0.84,
-  "wind_direction": "N",
-  "current_temp": 19.42,
-  "humidity": 77,
+  "condition": "scattered clouds",
+  "current_icon": "03n",
+  "wind_speed": 1.4,
+  "wind_direction": "NW",
+  "current_temp": 17.62,
+  "humidity": 84,
   "pressure": 1024,
-  "temp_history": [20.45, 20.03, 22.18, 24.45, 24.73, 21.11, 24.79],
-  "humidity_history": [76, 82, 72, 61, 61, 81, 53],
-  "pressure_history": [1022, 1026, 1025, 1021, 1017, 1017, 1015],
   "forecast": [
     {
       "day": "TODAY",
-      "date": "07/03",
-      "temp": 25.96,
-      "humidity": 68,
-      "icon": "10d"
-    },
-    {
-      "day": "MON",
-      "date": "07/04",
-      "temp": 28.0,
+      "date": "04/07",
+      "temp": 28.32,
       "humidity": 39,
       "icon": "01d"
     },
     {
-      "day": "TUE",
-      "date": "07/05",
-      "temp": 28.75,
+      "day": "SAT",
+      "date": "05/07",
+      "temp": 30.3,
       "humidity": 29,
       "icon": "03d"
     },
     {
-      "day": "WED",
-      "date": "07/06",
-      "temp": 26.81,
+      "day": "SUN",
+      "date": "06/07",
+      "temp": 27.8,
       "humidity": 31,
       "icon": "10d"
     },
     {
-      "day": "THU",
+      "day": "MON",
       "date": "07/07",
       "temp": 19.65,
       "humidity": 79,
       "icon": "10d"
     },
     {
-      "day": "FRI",
-      "date": "07/08",
-      "temp": 17.97,
+      "day": "TUE",
+      "date": "08/07",
+      "temp": 18.09,
       "humidity": 56,
+      "icon": "10d"
+    },
+    {
+      "day": "WED",
+      "date": "09/07",
+      "temp": 22.43,
+      "humidity": 36,
       "icon": "10d"
     }
   ],
-  "timestamp": "2025-07-03T22:00:02.094188300Z"
+  "history": [
+    { "day": "SAT", "date": "28/06", "temp": 32.0, "humidity": 93 },
+    { "day": "SUN", "date": "29/06", "temp": 31.0, "humidity": 90 },
+    { "day": "MON", "date": "30/06", "temp": 34.0, "humidity": 87 },
+    { "day": "TUE", "date": "01/07", "temp": 28.0, "humidity": 84 },
+    { "day": "WED", "date": "02/07", "temp": 32.0, "humidity": 81 },
+    { "day": "THU", "date": "03/07", "temp": 27.0, "humidity": 78 },
+    { "day": "TODAY", "date": "04/07", "temp": 17.62, "humidity": 75 }
+  ],
+  "timestamp": "2025-07-04T00:47:36.578326500Z"
 }

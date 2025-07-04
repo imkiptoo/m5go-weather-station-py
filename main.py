@@ -125,11 +125,11 @@ weather_icon_mapping = {
     
     # Few clouds
     '02d': 'mostlysunny.png',
-    '02n': 'nt_mostlycloudy.png',
+    '02n': 'cloudy.png',
     
     # Scattered clouds
-    '03d': 'mostlycloudy.png', 
-    '03n': 'mostlycloudy.png',
+    '03d': 'cloudy.png', 
+    '03n': 'nt_cloudy.png',
     
     # Broken clouds
     '04d': 'cloudy.png',
@@ -261,58 +261,23 @@ def parse_history_data(weather_data):
     global history_times, history_dates, history_temps, history_humidity
     
     try:
-        if 'temp_history' in weather_data and 'humidity_history' in weather_data:
-            temp_hist = weather_data['temp_history']
-            humid_hist = weather_data['humidity_history']
+        if 'history' in weather_data:
+            history_list = weather_data['history']
             
-            # Get current date from timestamp if available
-            current_date = None
-            if 'timestamp' in weather_data:
-                # Parse timestamp like "2025-07-03T22:00:02.094188300Z"
-                timestamp = weather_data['timestamp']
-                date_part = timestamp.split('T')[0]  # Get "2025-07-03"
-                year, month, day = date_part.split('-')
-                current_date = (int(year), int(month), int(day))
-            
-            # Process the last 5 data points from history arrays
-            # Take the most recent 5 values (reverse order to show newest first)
-            num_points = min(5, len(temp_hist), len(humid_hist))
-            
-            for i in range(num_points):
+            # Process up to 5 days from MQTT data
+            for i, day_data in enumerate(history_list[:5]):  
                 if i < len(history_times):
-                    # Calculate days back from today
-                    if i == 0:
-                        history_times[i] = "Today"
-                    elif i == 1:
-                        history_times[i] = "Day-1"
-                    elif i == 2:
-                        history_times[i] = "Day-2"
-                    elif i == 3:
-                        history_times[i] = "Day-3"
-                    elif i == 4:
-                        history_times[i] = "Day-4"
+                    # Update day names and dates
+                    history_times[i] = day_data.get('day', history_times[i])
+                    history_dates[i] = day_data.get('date', history_dates[i])
                     
-                    # Calculate date strings
-                    if current_date:
-                        # Calculate the date for this history point (i days ago)
-                        year, month, day = current_date
-                        # Simple date calculation (doesn't handle month/year boundaries perfectly)
-                        target_day = day - i
-                        if target_day <= 0:
-                            # Very simple: just show previous month days
-                            target_day = 30 + target_day
-                            month = month - 1 if month > 1 else 12
-                        history_dates[i] = "{:02d}/{:02d}".format(month, target_day)
+                    # Update temperatures (direct from temp field)
+                    temp = day_data.get('temp', 0)
+                    history_temps[i] = temp
                     
-                    # Update temperatures (take from end of array, most recent first)
-                    temp_index = len(temp_hist) - 1 - i
-                    if temp_index >= 0:
-                        history_temps[i] = temp_hist[temp_index]
-                    
-                    # Update humidity (take from end of array, most recent first)
-                    humid_index = len(humid_hist) - 1 - i
-                    if humid_index >= 0:
-                        history_humidity[i] = "{}%".format(int(humid_hist[humid_index]))
+                    # Update humidity (direct from humidity field)
+                    humidity = day_data.get('humidity', 0)
+                    history_humidity[i] = "{}%".format(humidity)
                         
             print("History data updated from MQTT successfully")
     except Exception as e:
@@ -328,7 +293,7 @@ def parse_weather_data(data):
         wind_direction = data.get("wind_direction", "")
         current_location = data.get("location", "Unknown")
 
-        weather_condition_description = "Outside: {:.1f}C, {}".format(weather_temp, weather_condition)
+        weather_condition_description = "O: {:.1f}C, {}".format(weather_temp, weather_condition)
         current_wind = "Wind: {} m/s, {}".format(wind_speed, wind_direction)
 
         old_icon_file = current_icon_file
@@ -336,7 +301,7 @@ def parse_weather_data(data):
         print(current_screen)
 
         if current_icon in weather_icon_mapping:
-                current_icon_file = weather_icon_mapping[current_icon]
+            current_icon_file = weather_icon_mapping[current_icon]
         else:
             current_icon_file = "unknown.png"
         
@@ -345,11 +310,14 @@ def parse_weather_data(data):
         
         # Update history data as well
         parse_history_data(data)
+
+        print("Set weather condition: {}".format(weather_condition_description))
         
         if current_screen == "home":            
             label_condition.setText(weather_condition_description)
             label_wind.setText(current_wind)
             #label_location.setText(label_location)
+            print(current_icon_file)
             if current_icon_file != old_icon_file:
                 image_condition.hide()
                 image_condition.changeImg("res/{}".format(current_icon_file))
@@ -543,37 +511,71 @@ def get_temp_color(temp):
         
         return (red << 16) | (green << 8) | blue
 
-def get_bar_height(temp, max_height=40):
-    """Calculate bar height based on temperature. Scale dynamically from min to max in history data"""
-    global history_temps
-    
-    # Find min and max temperatures in the current history data
-    if len(history_temps) > 0:
-        min_temp = min(history_temps)
-        max_temp = max(history_temps)
+def get_humidity_color(humidity):
+    """Calculate color based on humidity scale from 0% (light blue) to 100% (deep blue)"""
+    # Clamp humidity to range
+    if humidity <= 0:
+        return 0x87ceeb  # Light blue
+    elif humidity >= 100:
+        return 0x000080  # Deep blue
+    else:
+        # Linear interpolation from light blue to deep blue
+        ratio = humidity / 100  # 0.0 to 1.0
         
-        # If all temperatures are the same, just return middle height
-        if min_temp == max_temp:
+        # Light blue (0x87ceeb) to deep blue (0x000080)
+        # Light blue: R=135, G=206, B=235
+        # Deep blue: R=0, G=0, B=128
+        red = int(135 * (1 - ratio))
+        green = int(206 * (1 - ratio))
+        blue = int(235 * (1 - ratio) + 128 * ratio)
+        
+        return (red << 16) | (green << 8) | blue
+
+def get_bar_height(value, data_type="temp", max_height=40):
+    """Calculate bar height based on value. Scale dynamically from min to max in history data"""
+    global history_temps, history_humidity
+    
+    if data_type == "temp":
+        data_list = history_temps
+    else:  # humidity
+        data_list = [float(h.rstrip('%')) for h in history_humidity if h != "--"]
+    
+    # Find min and max values in the current history data
+    if len(data_list) > 0:
+        min_val = min(data_list)
+        max_val = max(data_list)
+        
+        # If all values are the same, just return middle height
+        if min_val == max_val:
             return max_height // 2
         
-        # Add a small buffer to make the chart more readable (5% of range)
-        temp_range = max_temp - min_temp
-        buffer = temp_range * 0.05
-        min_temp -= buffer
-        max_temp += buffer
+        # Add ±3 unit range to make the chart look more moderate
+        if data_type == "temp":
+            min_val -= 3
+            max_val += 3
+        else:  # humidity
+            min_val -= 3
+            max_val += 3
+            # Clamp humidity to 0-100 range
+            min_val = max(0, min_val)
+            max_val = min(100, max_val)
     else:
         # Fallback to default range if no history data
-        min_temp = 10
-        max_temp = 40
+        if data_type == "temp":
+            min_val = 10
+            max_val = 40
+        else:  # humidity
+            min_val = 0
+            max_val = 100
     
-    # Clamp temperature to calculated range
-    if temp <= min_temp:
+    # Clamp value to calculated range
+    if value <= min_val:
         return 5  # Minimum bar height
-    elif temp >= max_temp:
+    elif value >= max_val:
         return max_height
     else:
-        # Linear scaling based on actual data range
-        ratio = (temp - min_temp) / (max_temp - min_temp)
+        # Linear scaling based on actual data range with ±3 unit buffer
+        ratio = (value - min_val) / (max_val - min_val)
         return int(5 + (max_height - 5) * ratio)
 
 def update_footer():
@@ -666,8 +668,8 @@ def show_forecast_screen():
             day_text = forecast_days[i][:3]  # MON, TUE, etc.
         M5TextBox(x_pos, 48, day_text, lcd.FONT_DejaVu18, 0xffffff, rotate=0)
         
-        # Date (remove month, just day)
-        date_short = forecast_dates[i].split('/')[1] if '/' in forecast_dates[i] else forecast_dates[i]
+        # Date (extract day from DD/MM format)
+        date_short = forecast_dates[i].split('/')[0] if '/' in forecast_dates[i] else forecast_dates[i]
         M5TextBox(x_pos, 74, date_short, lcd.FONT_DejaVu18, 0xffffff, rotate=0)
         
         # Weather icon (try image first, fallback to text)
@@ -722,29 +724,52 @@ def show_history_screen():
     for i in range(5):
         x_pos = start_x + (i * col_width)
         
-        # Date (MM/DD format) - moved up to where day labels were
-        M5TextBox(x_pos, 48, history_dates[i], lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+        # Day abbreviation (TODAY, MON, TUE, etc.) - moved back to top row
+        if history_times[i] == "TODAY":
+            day_text = "TOD"  # Shortened to fit
+        else:
+            day_text = history_times[i][:3]  # MON, TUE, etc.
+        M5TextBox(x_pos, 48, day_text, lcd.FONT_DejaVu18, 0xffffff, rotate=0)
         
-        # Temperature bar (extended to use more vertical space)
+        # Date (extract day from DD/MM format)
+        date_short = history_dates[i].split('/')[0] if '/' in history_dates[i] else history_dates[i]
+        M5TextBox(x_pos, 74, date_short, lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+        
+        # Temperature and humidity bars side by side
         temp = history_temps[i]
-        bar_height = get_bar_height(temp, max_height=66)  # Increased max height to use extra space
-        bar_color = get_temp_color(temp)
+        humidity_str = history_humidity[i]
+        humidity = float(humidity_str.rstrip('%')) if humidity_str != "--" else 0
         
-        # Draw temperature bar (rectangle) - positioned higher and taller
-        bar_x = x_pos + 10  # Center the bar in the column
-        bar_y = 74 + (66 - bar_height)  # Start higher, position from bottom of extended bar area
-        bar_width = 20
+        # Calculate bar heights (using same max height for both)
+        max_bar_height = 66  # Increased max height to use extra space
+        temp_bar_height = get_bar_height(temp, "temp", max_bar_height)
+        humidity_bar_height = get_bar_height(humidity, "humidity", max_bar_height)
         
-        # Draw the temperature bar
-        M5Rect(bar_x, bar_y, bar_width, bar_height, bar_color, bar_color)
+        # Get colors for both bars
+        temp_bar_color = get_temp_color(temp)
+        humidity_bar_color = get_humidity_color(humidity)
         
-        # Temperature value below the bar
+        # Bar dimensions and positioning
+        bar_width = 10  # Half width to fit both bars
+        bar_spacing = 12  # Space between the two bars
+        
+        # Temperature bar (left side)
+        temp_bar_x = x_pos + 8  # Center the pair of bars in the column
+        temp_bar_y = 98 + (max_bar_height - temp_bar_height)  # Position from bottom of bar area
+        M5Rect(temp_bar_x, temp_bar_y, bar_width, temp_bar_height, temp_bar_color, temp_bar_color)
+        
+        # Humidity bar (right side)
+        humidity_bar_x = temp_bar_x + bar_spacing
+        humidity_bar_y = 98 + (max_bar_height - humidity_bar_height)  # Position from bottom of bar area
+        M5Rect(humidity_bar_x, humidity_bar_y, bar_width, humidity_bar_height, humidity_bar_color, humidity_bar_color)
+        
+        # Temperature value below the bars
         temp_text = "{:.1f}°".format(temp)
-        M5TextBox(x_pos, 150, temp_text, lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+        M5TextBox(x_pos, 170, temp_text, lcd.FONT_DejaVu18, 0xffffff, rotate=0)
         
         # Humidity percentage
         humid_text = history_humidity[i]
-        M5TextBox(x_pos, 176, humid_text, lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+        M5TextBox(x_pos, 190, humid_text, lcd.FONT_DejaVu18, 0xffffff, rotate=0)
     
     create_footer()
     update_footer()
