@@ -19,6 +19,34 @@ A comprehensive weather monitoring system for the M5GO device with ENV III senso
 - WiFi network connectivity
 - MQTT server for data exchange
 
+## Screenshots
+
+### Home Screen
+![Home Screen](screenshots/home.jpg)
+*Real-time sensor readings and current weather conditions*
+
+### Forecast Screen
+![Forecast Screen](screenshots/forecast.jpg)
+*5-day weather forecast with icons and detailed data*
+
+### History Screen
+![History Screen](screenshots/history.jpg)
+*Past 5 days of weather data with visual bar charts*
+
+### Settings Screen
+![Settings Screen](screenshots/settings.jpg)
+*Configuration options and connection status*
+
+### Alert Screens
+![Emergency Alert](screenshots/alert-emergency.jpg)
+*Emergency weather alert with red background*
+
+![Warning Alert](screenshots/alert-warning.jpg)
+*Warning weather alert with yellow background*
+
+![Info Alert](screenshots/alert-info.jpg)
+*Info weather alert with blue background*
+
 ## Screen Navigation
 
 - **Button A**: Navigate to different screens (varies by current screen)
