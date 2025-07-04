@@ -494,33 +494,71 @@ def get_page_name(screen_id):
         return "--"
 
 def get_temp_color(temp):
-    """Calculate color based on temperature scale from 20°C (green) to 50°C (red)"""
-    # Clamp temperature to range
-    if temp <= 20:
-        return 0x00ff00  # Green
-    elif temp >= 50:
-        return 0xff0000  # Red
-    else:
-        # Linear interpolation between green and red
-        ratio = (temp - 20) / (50 - 20)  # 0.0 to 1.0
+    """Calculate color based on dynamic temperature scale with ±3°C buffer (yellow/light green to orange)"""
+    global history_temps
+    
+    # Find min and max temperatures in the current history data
+    if len(history_temps) > 0:
+        min_temp = min(history_temps)
+        max_temp = max(history_temps)
         
-        # Green to red: decrease green, increase red
-        red = int(255 * ratio)
-        green = int(255 * (1 - ratio))
-        blue = 0
+        # Add ±3°C range to make the colors more moderate
+        min_temp -= 3
+        max_temp += 3
+    else:
+        # Fallback to default range if no history data
+        min_temp = 10
+        max_temp = 40
+    
+    # Clamp temperature to calculated range
+    if temp <= min_temp:
+        return 0x9acd32  # Yellow-green (light green)
+    elif temp >= max_temp:
+        return 0xff8c00  # Dark orange
+    else:
+        # Linear interpolation from yellow-green to orange
+        ratio = (temp - min_temp) / (max_temp - min_temp)  # 0.0 to 1.0
+        
+        # Yellow-green (0x9acd32) to orange (0xff8c00)
+        # Yellow-green: R=154, G=205, B=50
+        # Orange: R=255, G=140, B=0
+        red = int(154 + (255 - 154) * ratio)
+        green = int(205 + (140 - 205) * ratio)
+        blue = int(50 + (0 - 50) * ratio)
         
         return (red << 16) | (green << 8) | blue
 
 def get_humidity_color(humidity):
-    """Calculate color based on humidity scale from 0% (light blue) to 100% (deep blue)"""
-    # Clamp humidity to range
-    if humidity <= 0:
+    """Calculate color based on dynamic humidity scale with ±3% buffer (light blue to deep blue)"""
+    global history_humidity
+    
+    # Find min and max humidity in the current history data
+    humidity_values = [float(h.rstrip('%')) for h in history_humidity if h != "--"]
+    
+    if len(humidity_values) > 0:
+        min_humidity = min(humidity_values)
+        max_humidity = max(humidity_values)
+        
+        # Add ±3% range to make the colors more moderate
+        min_humidity -= 3
+        max_humidity += 3
+        
+        # Clamp humidity to 0-100 range
+        min_humidity = max(0, min_humidity)
+        max_humidity = min(100, max_humidity)
+    else:
+        # Fallback to default range if no history data
+        min_humidity = 0
+        max_humidity = 100
+    
+    # Clamp humidity to calculated range
+    if humidity <= min_humidity:
         return 0x87ceeb  # Light blue
-    elif humidity >= 100:
+    elif humidity >= max_humidity:
         return 0x000080  # Deep blue
     else:
         # Linear interpolation from light blue to deep blue
-        ratio = humidity / 100  # 0.0 to 1.0
+        ratio = (humidity - min_humidity) / (max_humidity - min_humidity)  # 0.0 to 1.0
         
         # Light blue (0x87ceeb) to deep blue (0x000080)
         # Light blue: R=135, G=206, B=235
