@@ -50,11 +50,10 @@ setScreenColor(0x000000)
 # Screen navigation configuration
 screen_navigation = {
     "status": {"A": "home", "B": "home", "C": "home"},
-    "home": {"A": "forecast", "B": "temp_history", "C": "settings"},
-    "forecast": {"A": "home", "B": "temp_history", "C": "settings"},
-    "temp_history": {"A": "home", "B": "humidity_history", "C": "settings"},
-    "humidity_history": {"A": "home", "B": "temp_history", "C": "settings"},
-    "settings": {"A": "home", "B": "forecast", "C": "temp_history"},
+    "home": {"A": "forecast", "B": "history", "C": "settings"},
+    "forecast": {"A": "home", "B": "history", "C": "settings"},
+    "history": {"A": "home", "B": "forecast", "C": "settings"},
+    "settings": {"A": "home", "B": "forecast", "C": "history"},
     "alert": {"A": "home", "B": "home", "C": "home"}
 }
 
@@ -164,6 +163,12 @@ forecast_temps = ["22°", "20°", "19°", "18°", "18°"]
 forecast_humidity = ["74%", "70%", "78%", "85%", "82%"]
 forecast_icons = ["sunny.png", "cloudy.png", "rain.png", "cloudy.png", "rain.png"]
 
+# Global variables for history display (5 time periods)
+history_times = ["Today", "Day-1", "Day-2", "Day-3", "Day-4"]
+history_dates = ["07/04", "07/03", "07/02", "07/01", "06/30"]
+history_temps = [24.5, 22.1, 19.8, 26.3, 28.0]  # Actual temperature values for bar height calculation
+history_humidity = ["65%", "72%", "78%", "58%", "52%"]
+
 def fetch_time():
     global ntp
     global rtc
@@ -251,6 +256,68 @@ def parse_forecast_data(weather_data):
     except Exception as e:
         print("Error parsing forecast data: {}".format(e))
 
+def parse_history_data(weather_data):
+    """Parse historical data from weather JSON and update history display variables"""
+    global history_times, history_dates, history_temps, history_humidity
+    
+    try:
+        if 'temp_history' in weather_data and 'humidity_history' in weather_data:
+            temp_hist = weather_data['temp_history']
+            humid_hist = weather_data['humidity_history']
+            
+            # Get current date from timestamp if available
+            current_date = None
+            if 'timestamp' in weather_data:
+                # Parse timestamp like "2025-07-03T22:00:02.094188300Z"
+                timestamp = weather_data['timestamp']
+                date_part = timestamp.split('T')[0]  # Get "2025-07-03"
+                year, month, day = date_part.split('-')
+                current_date = (int(year), int(month), int(day))
+            
+            # Process the last 5 data points from history arrays
+            # Take the most recent 5 values (reverse order to show newest first)
+            num_points = min(5, len(temp_hist), len(humid_hist))
+            
+            for i in range(num_points):
+                if i < len(history_times):
+                    # Calculate days back from today
+                    if i == 0:
+                        history_times[i] = "Today"
+                    elif i == 1:
+                        history_times[i] = "Day-1"
+                    elif i == 2:
+                        history_times[i] = "Day-2"
+                    elif i == 3:
+                        history_times[i] = "Day-3"
+                    elif i == 4:
+                        history_times[i] = "Day-4"
+                    
+                    # Calculate date strings
+                    if current_date:
+                        # Calculate the date for this history point (i days ago)
+                        year, month, day = current_date
+                        # Simple date calculation (doesn't handle month/year boundaries perfectly)
+                        target_day = day - i
+                        if target_day <= 0:
+                            # Very simple: just show previous month days
+                            target_day = 30 + target_day
+                            month = month - 1 if month > 1 else 12
+                        history_dates[i] = "{:02d}/{:02d}".format(month, target_day)
+                    
+                    # Update temperatures (take from end of array, most recent first)
+                    temp_index = len(temp_hist) - 1 - i
+                    if temp_index >= 0:
+                        history_temps[i] = temp_hist[temp_index]
+                    
+                    # Update humidity (take from end of array, most recent first)
+                    humid_index = len(humid_hist) - 1 - i
+                    if humid_index >= 0:
+                        history_humidity[i] = "{}%".format(int(humid_hist[humid_index]))
+                        
+            print("History data updated from MQTT successfully")
+    except Exception as e:
+        print("Error parsing history data: {}".format(e))
+
 def parse_weather_data(data):
     global weather_temp, weather_condition, current_icon_file, weather_condition_description, current_wind, current_location
     try:
@@ -275,6 +342,9 @@ def parse_weather_data(data):
         
         # Update forecast data as well
         parse_forecast_data(data)
+        
+        # Update history data as well
+        parse_history_data(data)
         
         if current_screen == "home":            
             label_condition.setText(weather_condition_description)
@@ -428,10 +498,8 @@ def navigate_to_screen(screen_name):
             show_home_screen()
         elif screen_name == "forecast":
             show_forecast_screen()
-        elif screen_name == "temp_history":
-            show_temp_history_screen()
-        elif screen_name == "humidity_history":
-            show_humidity_history_screen()
+        elif screen_name == "history":
+            show_history_screen()
         elif screen_name == "settings":
             show_settings_screen()
         elif screen_name == "alert":
@@ -448,16 +516,65 @@ def get_page_name(screen_id):
         return "Home"
     elif screen_id == "forecast":
         return "Forecast"
-    elif screen_id == "temp_history":
+    elif screen_id == "history":
         return "History"
-    elif screen_id == "humidity_history":
-        return "Humid"
     elif screen_id == "settings":
         return "Settings"
     elif screen_id == "alert":
         return "Alert"
     else:
         return "--"
+
+def get_temp_color(temp):
+    """Calculate color based on temperature scale from 20°C (green) to 50°C (red)"""
+    # Clamp temperature to range
+    if temp <= 20:
+        return 0x00ff00  # Green
+    elif temp >= 50:
+        return 0xff0000  # Red
+    else:
+        # Linear interpolation between green and red
+        ratio = (temp - 20) / (50 - 20)  # 0.0 to 1.0
+        
+        # Green to red: decrease green, increase red
+        red = int(255 * ratio)
+        green = int(255 * (1 - ratio))
+        blue = 0
+        
+        return (red << 16) | (green << 8) | blue
+
+def get_bar_height(temp, max_height=40):
+    """Calculate bar height based on temperature. Scale dynamically from min to max in history data"""
+    global history_temps
+    
+    # Find min and max temperatures in the current history data
+    if len(history_temps) > 0:
+        min_temp = min(history_temps)
+        max_temp = max(history_temps)
+        
+        # If all temperatures are the same, just return middle height
+        if min_temp == max_temp:
+            return max_height // 2
+        
+        # Add a small buffer to make the chart more readable (5% of range)
+        temp_range = max_temp - min_temp
+        buffer = temp_range * 0.05
+        min_temp -= buffer
+        max_temp += buffer
+    else:
+        # Fallback to default range if no history data
+        min_temp = 10
+        max_temp = 40
+    
+    # Clamp temperature to calculated range
+    if temp <= min_temp:
+        return 5  # Minimum bar height
+    elif temp >= max_temp:
+        return max_height
+    else:
+        # Linear scaling based on actual data range
+        ratio = (temp - min_temp) / (max_temp - min_temp)
+        return int(5 + (max_height - 5) * ratio)
 
 def update_footer():
     global current_screen, footer_a, footer_b, footer_c
@@ -581,17 +698,54 @@ def show_forecast_screen():
     create_footer()
     update_footer()
 
-def show_temp_history_screen():
-    show_header("Temperature History")
+def show_history_screen():
+    global history_times, history_dates, history_temps, history_humidity
     
-    M5TextBox(10, 50, "Temperature history will be displayed here", lcd.FONT_DejaVu18, 0xffffff, rotate=0)
-    create_footer()
-    update_footer()
-
-def show_humidity_history_screen():
-    show_header("Humidity History")
+    show_header("Past 5 Days")
     
-    M5TextBox(10, 50, "Humidity history will be displayed here", lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+    # Debug: print history data to console
+    print("History data:")
+    print("Days:", history_times)
+    print("Dates:", history_dates)
+    print("Temps:", history_temps)
+    print("Humidity:", history_humidity)
+    
+    # Add degree symbol and % symbol in top right
+    temp_unit = M5TextBox(260, 8, "°C", lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+    humid_unit = M5TextBox(290, 8, "%", lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+    
+    # Layout for 5 time periods across 320px screen with some margin
+    col_width = 60  # Same as forecast layout
+    start_x = 8   # Start with small margin from left edge
+    
+    # Create history display for all 5 time periods
+    for i in range(5):
+        x_pos = start_x + (i * col_width)
+        
+        # Date (MM/DD format) - moved up to where day labels were
+        M5TextBox(x_pos, 48, history_dates[i], lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+        
+        # Temperature bar (extended to use more vertical space)
+        temp = history_temps[i]
+        bar_height = get_bar_height(temp, max_height=66)  # Increased max height to use extra space
+        bar_color = get_temp_color(temp)
+        
+        # Draw temperature bar (rectangle) - positioned higher and taller
+        bar_x = x_pos + 10  # Center the bar in the column
+        bar_y = 74 + (66 - bar_height)  # Start higher, position from bottom of extended bar area
+        bar_width = 20
+        
+        # Draw the temperature bar
+        M5Rect(bar_x, bar_y, bar_width, bar_height, bar_color, bar_color)
+        
+        # Temperature value below the bar
+        temp_text = "{:.1f}°".format(temp)
+        M5TextBox(x_pos, 150, temp_text, lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+        
+        # Humidity percentage
+        humid_text = history_humidity[i]
+        M5TextBox(x_pos, 176, humid_text, lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+    
     create_footer()
     update_footer()
 
