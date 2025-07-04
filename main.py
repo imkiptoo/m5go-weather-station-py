@@ -45,7 +45,7 @@ screen_navigation = {
     "forecast": {"A": "home", "B": "history", "C": "settings"},
     "history": {"A": "home", "B": "forecast", "C": "settings"},
     "settings": {"A": "home", "B": "forecast", "C": "history"},
-    "alert": {"A": "home", "B": "home", "C": "home"}
+    "alert": {"A": "", "B": "home", "C": ""}
 }
 
 current_screen = "status"
@@ -395,7 +395,7 @@ def get_page_name(screen_id):
         "settings": "Settings",
         "alert": "Alert"
     }
-    return page_names.get(screen_id, "--")
+    return page_names.get(screen_id, "")
 
 def get_temp_color(temp):
     """Calculate color based on dynamic temperature scale with ±3°C buffer"""
@@ -519,6 +519,10 @@ def show_header(name):
     M5Rect(0, 0, 320, 32, 0x262626, 0x262626)
     M5TextBox(8, 8, name, lcd.FONT_DejaVu18, 0xffffff, rotate=0)
 
+def show_alert_header(name, color):
+    M5Rect(0, 0, 320, 32, color, 0xffffff)
+    M5TextBox(8, 8, name, lcd.FONT_DejaVu18, 0xffffff, rotate=0)
+
 def create_footer():
     M5Rect(0, 208, 320, 32, 0x262626, 0x262626)
     
@@ -529,9 +533,9 @@ def create_footer():
         if current_screen == "status" and not can_navigate_from_status():
             footer_a = footer_b = footer_c = ""
         else:
-            footer_a = get_page_name(nav.get("A", "--"))
-            footer_b = get_page_name(nav.get("B", "--"))
-            footer_c = get_page_name(nav.get("C", "--"))
+            footer_a = get_page_name(nav.get("A", ""))
+            footer_b = get_page_name(nav.get("B", ""))
+            footer_c = get_page_name(nav.get("C", ""))
         
         M5TextBox(32, 216, footer_a, lcd.FONT_DejaVu18, 0x888888, rotate=0)
         M5TextBox(126, 216, footer_b, lcd.FONT_DejaVu18, 0x888888, rotate=0)
@@ -560,6 +564,14 @@ def show_status_screen():
 
 def show_home_screen():
     show_header("Home Screen")
+    
+    # Clear just the text areas to prevent overlap
+    M5Rect(8, 48, 240, 26, 0x111111, 0x111111)  # Clear temp area
+    M5Rect(8, 74, 240, 26, 0x111111, 0x111111)  # Clear humidity area  
+    M5Rect(8, 100, 240, 26, 0x111111, 0x111111)  # Clear pressure area
+    M5Rect(8, 126, 240, 26, 0x111111, 0x111111)  # Clear weather description area
+    M5Rect(8, 152, 240, 26, 0x111111, 0x111111)  # Clear wind area
+    M5Rect(248, 44, 72, 72, 0x111111, 0x111111)  # Clear icon area
     
     # Lazy UI creation - create elements inline, don't store globally
     temp_text = "Temp: {}".format(format_temperature(sensor['temp'], True)) if sensor['temp'] is not None else "Temp: --{}".format(get_temperature_unit_symbol())
@@ -723,7 +735,7 @@ def show_alert_screen():
     setScreenColor(bg_color)
     
     # Show header
-    show_header("Alert - {}".format(alert_level.upper()))
+    show_alert_header("Alert - {}".format(alert_level.upper()), bg_color)
     
     # Display alert message - split into multiple lines if needed
     if len(alert_message) > 40:
@@ -743,7 +755,7 @@ def show_alert_screen():
         M5TextBox(8, y_pos, "Time: {}".format(alert_timestamp), lcd.FONT_DejaVu18, text_color, rotate=0)
     
     # Display dismiss instruction
-    M5TextBox(8, 190, "Press B to dismiss", lcd.FONT_DejaVu18, text_color, rotate=0)
+    M5TextBox(8, 180, "Press B to dismiss", lcd.FONT_DejaVu18, text_color, rotate=0)
     
     create_footer()
 
